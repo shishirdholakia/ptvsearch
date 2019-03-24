@@ -35,18 +35,7 @@ def find_phase_OC(lc):
             popt, pcov = scipy.optimize.curve_fit(sinfunc, interval, flux[index], p0=guess)
             periodlist.append(popt[0])
             mediantimelist.append(np.median(interval))
-
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+        return(periodlist,mediantimelist)
 def divide_chunks(l, n): 
   
 # looping till length l 
