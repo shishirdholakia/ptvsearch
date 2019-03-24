@@ -14,9 +14,10 @@ def is_delta_scuti(lc):
     frequency, power = LombScargle(lc.time, lc.flux).autopower()
     peaks, properties = find_peaks(power, prominence=threshold)
     if len(peaks)>0:
-        return True
+        return peaks
     elif len(peaks)==0:
         return False
+    
 def get_periodogram_quality():
     pass
 

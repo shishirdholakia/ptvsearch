@@ -31,7 +31,8 @@ def find_phase_OC(lc,frequency_peaks):
             popt, pcov = scipy.optimize.curve_fit(sinfunc, interval, flux[index], p0=guess)
             periodlist.append(popt[0])
             mediantimelist.append(np.median(interval))
-        return(86400*(np.array(periodlist)-np.mean(periodlist)),np.array(mediantimelist))
+    #fix this to return an array for each frequency
+    return(86400*(np.array(periodlist)-np.mean(periodlist)),np.array(mediantimelist))
         
 def divide_chunks(l, n): 
     # looping till length l 
