@@ -22,18 +22,19 @@ if __name__=='__main__':
         #concatenate the available TESS sectors crudely
         for lcfile in lcs:
             if lc is None:
-                lc = lcfile.PDCSAP_FLUX
+                lc = lcfile.PDCSAP_FLUX.normalize().flatten(window_length=201,break_tolerance=10)
             else:
-                lc.append(lcfile.PDCSAP_FLUX)
+                lc.append(lcfile.PDCSAP_FLUX.normalize().flatten(window_length=201,break_tolerance=10))
                 
         lc = lc.remove_nans()
-        lc.flatten(window_length=101,break_tolerance=50)
+        lc.plot()
         
         del_scu = is_delta_scuti(lc)
         if del_scu is not False:
+            print(del_scu)
             pg = lc.to_periodogram(min_frequency = del_scu[0]-0.3,max_frequency = del_scu[0]+0.3, oversample_factor = 500, nyquist_factor = 4)
             freqs = [pg.frequency_at_max_power.value]
-            
+            print(pg.frequency_at_max_power.value)
             periodlist, mediantimelist = find_phase_OC(lc,freqs)
             plot_LAT('o_c.png', mediantimelist, periodlist)
         

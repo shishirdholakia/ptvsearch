@@ -17,10 +17,10 @@ def find_phase_OC(lc,frequency_peaks):
     for freq in frequency_peaks:
         def sinfunc(t,c, A):  return A * np.sin(2*pi*freq*(t+c)) + 1.0
         #subdivide every light curve into 100 sections
-        num_sections = 100
+        num_sections = 200
         time = list(divide_chunks(lc.time,num_sections))
         flux = list(divide_chunks(lc.flux,num_sections))
-        guess_phase = lc.time[0]
+        guess_phase = lc.time[35]
         guess_amp = np.std(lc.flux) * 2.**0.5
         periodlist = []
         mediantimelist = []
