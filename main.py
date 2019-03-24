@@ -63,7 +63,7 @@ if __name__=='__main__':
                 periodlist, mediantimelist = find_phase_OC(lc,freqs)
                 plot_LAT('o-c plots/'+str(ticid)+'_o_c.png', mediantimelist, periodlist)
         except(TypeError):
-            print("No LCs found" Skipping)
+            print("No LCs found. Skipping")
 
             
 
