@@ -5,16 +5,28 @@ Created on Sun Mar 24 00:51:15 2019
 
 @author: shashank
 """
+from astropy.stats import LombScargle
+from scipy.signal import find_peaks
 
 class DelScuSearch:
     
-    def find_delta_scuti:
-        pass
-    
+    def is_delta_scuti(lc):
+        threshold=0.1 #need to experiment more
+        frequency, power = LombScargle(lc.time, lc.flux).autopower()
+        peaks, properties = find_peaks(power, prominence=threshold)
+        if len(peaks)>0:
+            return True
+        elif len(peaks)==0:
+            return False
     def get_periodogram_quality():
         pass
     
     def rank_by_quality():
         pass
     
-    
+    def clean_lc(lc):
+        """
+        Cleans lightcurve by removing sections of the periodogram that aren't
+        near the peaks.
+        """
+        return lc
