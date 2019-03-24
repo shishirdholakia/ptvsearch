@@ -1,3 +1,8 @@
+# data files
+o-c plots/
+periodograms/
+lightcurves/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
