@@ -44,8 +44,10 @@ def plot_LAT(path, mediantimelist, periodlist):
     ax = fig.add_subplot(111)
     
     arr = scipy.stats.binned_statistic(mediantimelist, periodlist, 'mean', bins=20)
+    arr1 = scipy.stats.binned_statistic(mediantimelist, periodlist, np.std, bins=5)
+
     ax.scatter(mediantimelist,periodlist,s=5)
-    ax.scatter(arr[1][0:-1],arr[0],c='red',s = 20)
+    ax.errorbar(arr[1][0:-1],(np.array(arr[0])-np.mean(periodlist))*86400,yerr = (arr1[0]*86400.0)/np.sqrt(arr[1][1]-arr[1][0]),fmt = 'o', c='red')
     plt.savefig(path)
 
 def find_period_OC():
