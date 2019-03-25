@@ -20,7 +20,8 @@ def find_phase_OC(lc,frequency_peaks):
         num_sections = 200
         time = list(divide_chunks(lc.time,num_sections))
         flux = list(divide_chunks(lc.flux,num_sections))
-        guess_phase = lc.time[35]
+        guess_phase = lc.time[np.abs(lc.flux[0:100]).argmin()] #find index of flux closest to zero to find phase zero
+
         guess_amp = np.std(lc.flux) * 2.**0.5
         periodlist = []
         mediantimelist = []
