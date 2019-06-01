@@ -8,7 +8,7 @@ Created on Sun Mar 24 02:16:31 2019
 import os
 import pandas as pd
 import lightkurve as lk
-from del_scu_search import is_delta_scuti
+from del_scu_search import Periodogram
 import matplotlib.pyplot as plt
 from ptv_search import *
 
@@ -42,7 +42,8 @@ if __name__=='__main__':
             ax.figure.savefig('lightcurves/'+str(ticid)+'_lc.png')
             plt.close()
             
-            del_scu = is_delta_scuti(lc)
+            periodogram = Periodogram(lc)
+            del_scu = periodogram.is_delta_scuti()
             if del_scu is not False:
                 print(del_scu)
                 frequency,power,peaks = del_scu

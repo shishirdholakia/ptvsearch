@@ -8,25 +8,33 @@ Created on Sun Mar 24 00:51:15 2019
 from astropy.stats import LombScargle
 from scipy.signal import find_peaks
 import scipy.fftpack
-
-def is_delta_scuti(lc):
-    threshold=0.1 #need to experiment more
-    frequency, power = LombScargle(lc.time, lc.flux).autopower()
-    peaks, properties = find_peaks(power, prominence=threshold)
-    if len(peaks)>0:
-        return [frequency,power,peaks]
-    elif len(peaks)==0:
-        return False
+class Periodogram:
     
-def get_periodogram_quality():
-    pass
+    def __init__(lc,threshold=0.1)
+        self.lc = lc
+        self.threshold
+        self.frequency, self.power = LombScargle(lc.time, lc.flux).autopower()
+        self.peaks, properties = find_peaks(power, prominence=threshold)
+        
+    def is_delta_scuti():
 
-def rank_by_quality():
-    pass
-
-def clean_lc(lc):
-    """
-    Cleans lightcurve by removing sections of the periodogram that aren't
-    near the peaks.
-    """
-    return lc
+        if len(self.peaks)>0:
+            return [self.frequency,self.power,self.peaks]
+        elif len(self.peaks)==0:
+            return False
+        
+    def get_periodogram_quality():
+        pass
+    
+    def rank_by_quality():
+        pass
+    
+    def get_periodogram_peaks():
+        return np.array([self.frequency[self.peaks],self.power[self.peaks]])
+    
+    def clean_lc():
+        """
+        Cleans lightcurve by removing sections of the periodogram that aren't
+        near the peaks.
+        """
+        return 

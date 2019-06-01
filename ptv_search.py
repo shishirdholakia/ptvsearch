@@ -12,7 +12,7 @@ import numpy as np
 
 pi = np.pi  
   
-def find_phase_OC(lc,frequency_peaks):    
+def find_phase_OC(lc,frequency_peaks,guess_phase=0):    
     #iterate over all the pulsation modes of the star find the OC
     for freq in frequency_peaks:
         def sinfunc(t,c, A):  return A * np.sin(2*pi*freq*(t+c)) + 1.0
@@ -20,7 +20,8 @@ def find_phase_OC(lc,frequency_peaks):
         num_sections = 200
         time = list(divide_chunks(lc.time,num_sections))
         flux = list(divide_chunks(lc.flux,num_sections))
-        guess_phase = lc.time[np.abs(lc.flux[0:100]).argmin()] #find index of flux closest to zero to find phase zero
+        if guess_phase==0:
+            guess_phase = lc.time[np.abs(lc.flux[0:100]).argmin()] #find index of flux closest to zero to find phase zero
 
         guess_amp = np.std(lc.flux) * 2.**0.5
         periodlist = []
