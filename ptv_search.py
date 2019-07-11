@@ -20,8 +20,8 @@ def find_phase_OC(lc,frequency_peaks,guess_phase=0):
         num_sections = 200
         time = list(divide_chunks(lc.time,num_sections))
         flux = list(divide_chunks(lc.flux,num_sections))
-        if guess_phase==0:
-            guess_phase = lc.time[np.abs(lc.flux[0:100]).argmin()] #find index of flux closest to zero to find phase zero
+        guess_phase = lc.time[(np.abs(lc.flux[0:1000]-1.0)).argmin()]
+
 
         guess_amp = np.std(lc.flux) * 2.**0.5
         periodlist = []
@@ -30,7 +30,7 @@ def find_phase_OC(lc,frequency_peaks,guess_phase=0):
         for index, interval in enumerate(time):
             #make the window into a TESSLightCurve object
             guess = np.array([guess_phase,guess_amp])
-            popt, pcov = scipy.optimize.curve_fit(sinfunc, interval, flux[index], p0=guess)
+            popt, pcov = scipy.optimize.curve_fit(sinfunc1, interval, flux[index], p0=guess, bounds =([guess[0]-0.25/freq,-0.05],[guess[0]+0.25/freq,0.05]))
             periodlist.append(popt[0])
             mediantimelist.append(np.median(interval))
     #fix this to return an array for each frequency
