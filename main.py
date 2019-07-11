@@ -44,9 +44,9 @@ if __name__=='__main__':
             
             periodogram = Periodogram(lc)
             del_scu = periodogram.is_delta_scuti()
-            if del_scu is not False:
+            if del_scu:
                 print(del_scu)
-                frequency,power,peaks = del_scu
+                frequency,power,peaks = periodogram.frequency, periodogram.power,periodogram.peaks
                 peak_freqs = frequency[peaks]
                 pg = lc.to_periodogram(min_frequency = peak_freqs[0]-0.3,max_frequency = peak_freqs[0]+0.3, oversample_factor = 500, nyquist_factor = 4)
                 freqs = [pg.frequency_at_max_power.value]
@@ -55,6 +55,9 @@ if __name__=='__main__':
                 plt.clf()
                 plt.plot(frequency,power,c='blue')
                 plt.scatter(frequency[peaks],power[peaks],c='black')
+                discard_peaks = periodogram.get_discard_peaks()
+                plt.scatter(frequency[discard_peaks],power[discard_peaks],c='red')
+                
                 plt.xlabel('Frequency (cycles/day)')
                 plt.ylabel('Power')
                 plt.xlim([0,40])

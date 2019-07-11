@@ -17,12 +17,18 @@ class Periodogram:
         self.frequency, self.power = LombScargle(lc.time, lc.flux).autopower()
         self.peaks, properties = find_peaks(self.power, prominence=threshold)
         
+        
     def is_delta_scuti(self):
 
         if len(self.peaks)>0:
-            return [self.frequency,self.power,self.peaks]
+            return True
         elif len(self.peaks)==0:
             return False
+        
+    def get_discard_peaks(self,discard_threshold=0.01):
+        discard_peaks, dp_properties = find_peaks(self.power, prominence=[discard_threshold,self.threshold])
+        return discard_peaks
+        
         
     def get_periodogram_quality(self):
         pass
@@ -38,4 +44,6 @@ class Periodogram:
         Cleans lightcurve by removing sections of the periodogram that aren't
         near the peaks.
         """
+        
+        
         return 
