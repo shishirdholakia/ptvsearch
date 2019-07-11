@@ -11,11 +11,11 @@ import scipy.fftpack
 
 class Periodogram:
     
-    def __init__(self,lc,threshold=0.1)
+    def __init__(self,lc,threshold=0.1):
         self.lc = lc
-        self.threshold
+        self.threshold = threshold
         self.frequency, self.power = LombScargle(lc.time, lc.flux).autopower()
-        self.peaks, properties = find_peaks(power, prominence=threshold)
+        self.peaks, properties = find_peaks(self.power, prominence=threshold)
         
     def is_delta_scuti(self):
 
