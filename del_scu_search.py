@@ -70,18 +70,29 @@ class SinModel:
 
         return self.A * np.sin(2*np.pi*self.freq*(self.time + self.phase)) + 1.0
     
-    def noise_model(sigma,type="gaussian"):
+    def add_noise_model(sigma,type="gaussian"):
+        
         if type=="gaussian":
-            return self.model + np.random.normal(0,sigma,len(self.time))
+            self.flux = self.flux + np.random.normal(0,sigma,len(self.time))
+            return self.flux
         
     
 class PM_Model(SinModel):
-    
+        def __init__(self, t,freq, phase, A, pm_freq,pm_phase,pm_A):
+            SinModel.__init__(self,t,freq, phase, A)
+            self.pm_freq = pm_freq
+            self.pm_phase = pm_phase
+            self.pm_A = pm_A
+            
+            self.flux = self.model(t,freq, phase, A, pm_freq,pm_phase,pm_A)
+            
         def model(t,freq, c, A, pm_freq,pm_c,pm_A):
         """Same as simple sine function, but uses a simple sine as a time
         varying function to describe amplitude"""
         return A * np.sin(2*pi*freq*(t + self.simple_sin(t,pm_freq,pm_c,pm_A))) + 1.0
-class 
+    
+class FM_model(SinModel):
+    pass
 
     
     
