@@ -49,13 +49,39 @@ class Periodogram:
         
         return 
     
-class delScuModel:
+class SinModel:
     
-    def __init__(self):
-        pass
-    def simple_sin(t,freq, c, A):
-        return A * np.sin(2*pi*freq*(t+c)) + 1.0
-    def pm_sin(t,freq, c, A, pm_freq,pm_c,pm_A):
+    """
+    Base class for a variety of models of a Delta Scuti star's
+    pulsations, ranging from a simple sine function to a (not yet implemented)
+    full physical model with light arrival time modulations to the phase and the
+    frequency
+    """
+    
+    def __init__(self,t,freq, phase, A):
+        self.freq = freq
+        self.phase = phase
+        self.A = A
+        
+        self.time = t
+        self.flux = self.model(t,freq, phase, A)
+    
+    def model(self):
+
+        return self.A * np.sin(2*np.pi*self.freq*(self.time + self.phase)) + 1.0
+    
+    def noise_model(sigma,type="gaussian"):
+        if type=="gaussian":
+            return self.model + np.random.normal(0,sigma,len(self.time))
+        
+    
+class PM_Model(SinModel):
+    
+        def model(t,freq, c, A, pm_freq,pm_c,pm_A):
         """Same as simple sine function, but uses a simple sine as a time
         varying function to describe amplitude"""
         return A * np.sin(2*pi*freq*(t + self.simple_sin(t,pm_freq,pm_c,pm_A))) + 1.0
+class 
+
+    
+    
