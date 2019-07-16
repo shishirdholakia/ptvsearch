@@ -5,6 +5,7 @@ Created on Sun Mar 24 00:51:15 2019
 
 @author: shashank
 """
+import numpy as np
 from astropy.stats import LombScargle
 from scipy.signal import find_peaks
 import scipy.fftpack
@@ -64,32 +65,33 @@ class SinModel:
         self.A = A
         
         self.time = t
-        self.flux = self.model(t,freq, phase, A)
+        self.flux = SinModel.model(self)
     
     def model(self):
 
         return self.A * np.sin(2*np.pi*self.freq*(self.time + self.phase)) + 1.0
     
-    def add_noise_model(sigma,type="gaussian"):
-        
-        if type=="gaussian":
-            self.flux = self.flux + np.random.normal(0,sigma,len(self.time))
-            return self.flux
+    def add_noise_model(self,sigma,dist="gaussian"):
+        self.flux = self.flux + np.random.normal(0,sigma,len(self.time))
+        return self.flux
         
     
 class PM_Model(SinModel):
-        def __init__(self, t,freq, phase, A, pm_freq,pm_phase,pm_A):
-            SinModel.__init__(self,t,freq, phase, A)
-            self.pm_freq = pm_freq
+        def __init__(self, t,freq, phase, A, pm_period,pm_phase,pm_A):
+            super().__init__(t,freq, phase, A)
+            self.pm_period = pm_period
             self.pm_phase = pm_phase
             self.pm_A = pm_A
             
-            self.flux = self.model(t,freq, phase, A, pm_freq,pm_phase,pm_A)
+            self.flux = self.model()
             
-        def model(t,freq, c, A, pm_freq,pm_c,pm_A):
-        """Same as simple sine function, but uses a simple sine as a time
-        varying function to describe amplitude"""
-        return A * np.sin(2*pi*freq*(t + self.simple_sin(t,pm_freq,pm_c,pm_A))) + 1.0
+        def model(self):
+            """
+            Same as simple sine function, but uses a simple sine as a time
+            varying function to describe amplitude
+            """
+            phase_func = SinModel(self.time,1/self.pm_period,self.pm_phase,self.pm_A).model()
+            return self.A * np.sin(2*np.pi*self.freq*(self.time + phase_func - 1.0)) + 1.0
     
 class FM_model(SinModel):
     pass
