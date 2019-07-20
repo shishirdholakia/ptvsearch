@@ -38,7 +38,7 @@ class Periodogram:
     def rank_by_quality(self):
         pass
     
-    def get_periodogram_peaks():
+    def get_periodogram_peaks(self):
         return np.array([self.frequency[self.peaks],self.power[self.peaks]])
     
     def clean_lc(self):
@@ -49,6 +49,8 @@ class Periodogram:
         
         
         return 
+def sine(x,t,b,a):
+    return a*np.sin(2*(1/t)*np.pi*(x - b))
     
 class SinModel:
     
@@ -59,39 +61,70 @@ class SinModel:
     frequency
     """
     
-    def __init__(self,t,freq, phase, A):
-        self.freq = freq
-        self.phase = phase
-        self.A = A
+    def __init__(self,t,freq, phase, amp,flux=None):
         
-        self.time = t
-        self.flux = SinModel.model(self)
+        if (type(freq) is float or type(freq) is int) \
+        and (type(phase) is float or type(phase) is int) \
+        and (type(amp) is float or type(amp) is int):
+            
+            self.freqs = [freq]
+            self.phases = [phase]
+            self.amps = [amp]
+        else:
+            self.freqs = freq
+            self.phases = phase
+            self.amps = amp          
+        
+        self.time = np.array(t)
+        if flux is None:
+            self.flux = np.zeros(len(self.time))
+            for f,p,a in zip(self.freqs,self.phases,self.amps):
+                self.flux += SinModel.model(self,f, p, a)
+        else:
+            self.flux = flux
     
-    def model(self):
+    def model(self,freq, phase, amp):
 
-        return self.A * np.sin(2*np.pi*self.freq*(self.time + self.phase)) + 1.0
+        return amp * np.sin(2*np.pi*freq*(self.time + phase)) + 1.0
     
     def add_noise_model(self,sigma,dist="gaussian"):
         self.flux = self.flux + np.random.normal(0,sigma,len(self.time))
         return self.flux
+    
+    def __add__(self, other):
+        assert len(self.time)==len(other.time)
+        assert len(self.flux) == len(other.flux)
+        time  = self.time
+        total_flux = self.flux + other.flux
+        freqs = self.freqs+other.freqs
+        phases = self.phases+other.phases
+        amps = self.amps + other.amps
+
+        return self.__class__(time,freqs,phases,amps,flux=total_flux)
         
     
 class PM_Model(SinModel):
-        def __init__(self, t,freq, phase, A, pm_period,pm_phase,pm_A):
+        def __init__(self, t,freq, phase, A, pm_period=0,pm_phase=0,pm_A=0,flux = None):
             super().__init__(t,freq, phase, A)
+            print(self.freqs,self.amps,self.phases,self.flux)
             self.pm_period = pm_period
             self.pm_phase = pm_phase
             self.pm_A = pm_A
+            if flux is None:
+                self.flux = self.model(pm_period,pm_phase,pm_A)
+            else:
+                self.flux = flux
             
-            self.flux = self.model()
-            
-        def model(self):
+        def model(self,pm_period,pm_phase,pm_A):
             """
             Same as simple sine function, but uses a simple sine as a time
             varying function to describe amplitude
             """
-            phase_func = SinModel(self.time,1/self.pm_period,self.pm_phase,self.pm_A).model()
-            return self.A * np.sin(2*np.pi*self.freq*(self.time + phase_func - 1.0)) + 1.0
+            phase_func = sine(self.time,self.pm_period,self.pm_phase,self.pm_A)
+            flux = np.zeros(len(self.time))
+            for freq,amp,phase in zip(self.freqs,self.amps,self.phases):
+                flux += amp * np.sin(2*np.pi*freq*(self.time + (phase_func+phase))) + 1.0
+            return flux
     
 class FM_model(SinModel):
     pass
