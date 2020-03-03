@@ -14,10 +14,11 @@ from scipy import optimize
 class Periodogram:
     
     def __init__(self,lc,threshold=0.1,maximum_frequency=40):
-        self.lc = lc
+        self.lc = lc.remove_nans()
         self.threshold = threshold
         self.maximum_frequency = maximum_frequency
-        self.frequency, self.power = LombScargle(lc.time, lc.flux,normalization='psd').autopower()
+        self.ls = LombScargle(lc.time, lc.flux, normalization='psd')
+        self.frequency, self.power = LombScargle(lc.time, lc.flux, normalization='psd').autopower()
         self.discard_peaks = []
         peaks, properties = find_peaks(self.power, prominence=threshold,distance=500)
         
@@ -34,8 +35,23 @@ class Periodogram:
             return False
 
     
-    def get_discard_peaks(self,discard_threshold=0.01):
-        discard_peaks, properties = find_peaks(self.power, prominence=[discard_threshold,self.threshold])
+    def get_discard_peaks(self,discard_threshold=0.01,discard_all=False):
+        
+        """
+        Gets peaks to discard from the periodogram. By default, it finds peaks
+        that are smaller than the main peaks of the delta scuti (the ones that
+        you might want to use to fit for PTVs) but still large enough to cause unwanted
+        noise in the final estimate of PTVs. Can also be used to find all the peaks
+        if discard_all=True, in which case it will yield all the peaks above a threshold.
+        This is useful for getting rid of all of the peaks in the lightcurve,
+        for instance if you wish to search for transits.
+        
+        """
+        self.discard_peaks = []
+        if discard_all:
+            discard_peaks, properties = find_peaks(self.power, prominence=[discard_threshold,1])
+        else:
+            discard_peaks, properties = find_peaks(self.power, prominence=[discard_threshold,self.threshold])
         for peak in discard_peaks:
             if self.frequency[peak]<self.maximum_frequency:
                 self.discard_peaks.append(peak)        
@@ -51,21 +67,24 @@ class Periodogram:
     def get_periodogram_peaks(self):
         return np.array([self.frequency[self.peaks],self.power[self.peaks]])
     
-    def clean_lc(self, peaks=self.peaks, ampls, phases):
+    def clean_lc(self, ampls, phases, freqs=None):
         
         """
         Cleans lightcurve by removing sections of the periodogram that aren't
         near the peaks.
         
-        Applies remove_sine_simplex one at a time for each peak in the lightcurve
+        Applies fit_sine_simplex one at a time for each peak in the lightcurve
         
         """
-        #for i, peak in enumerate(peaks):
-            #fit_sine_simplex()
-        pass
+
+        if freqs is None:
+            freqs = self.freqs
         
+        for i, freq in enumerate(freqs):
+            params = self.fit_sine_simplex(steps=200, hf_width=0.08643, window_samples=25, guess=(freqs[i],ampls[i],phases[i]))
+            self.lc.flux = self.lc.flux-params[1]*np.sin(2*params[0]*np.pi*(self.lc.time - params[2]))
         
-    def fit_sine_simplex(self, lc=self.lc, freq_sf, amp_sc, phase_sc, steps, hf_width, window_samples, guess):
+    def fit_sine_simplex(self, steps, hf_width, window_samples, guess, lc=None):
         """ 
         Helper function to fit a sine wave to a signal by minimizing the 
         significance of the peak in frequency space (from a Lomb-Scargle)
@@ -75,14 +94,15 @@ class Periodogram:
             amplitude initial guess
             phase initial guess
         """
+        if lc is None:
+            lc = self.lc
         #calculate initial periodogram significance
         freq_grid = np.linspace(guess[0]-hf_width, guess[0]+hf_width, window_samples)
-        power = LombScargle(lc.time, lc.flux, lc.flux_err).power(freq_grid, method="cython")
-        initial_sig = 1-ls.false_alarm_probability(power.max())
+        ls = LombScargle(lc.time, lc.flux, lc.flux_err)
+        power = ls.power(freq_grid, method="cython")
         
-        params = minimize(fitfunc, guess, args=(lc,freq_grid), method='Nelder-Mead')
-        
-        return params[1]*np.sin(2*params[0]*np.pi*(lc.time - params[2]))
+        params = optimize.minimize(fitfunc, guess, args=(lc,freq_grid), method='Nelder-Mead')
+        return params.x
         
         
         
@@ -99,7 +119,7 @@ def fitfunc(params,*args):
                      lc.flux-params[1]*np.sin(2*params[0]*np.pi*(lc.time - params[2])),
                      lc.flux_err)
     power = ls.power(grid, method="cython")
-    return 1-ls.false_alarm_probability(power.max())
+    return power.max()
 
 def sine(x,t,b,a):
     return a*np.sin(2*(1/t)*np.pi*(x - b))
