@@ -18,7 +18,7 @@ class Periodogram:
         self.threshold = threshold
         self.maximum_frequency = maximum_frequency
         self.ls = LombScargle(lc.time, lc.flux, normalization='psd')
-        self.frequency, self.power = LombScargle(lc.time, lc.flux, normalization='psd').autopower()
+        self.frequency, self.power = self.ls.autopower()
         self.discard_peaks = []
         peaks, properties = find_peaks(self.power, prominence=threshold,distance=500)
         
@@ -67,7 +67,17 @@ class Periodogram:
     def get_periodogram_peaks(self):
         return np.array([self.frequency[self.peaks],self.power[self.peaks]])
     
-    def clean_lc(self, ampls, phases, freqs=None):
+#helper function to create guess parameters from list of peaks    
+    def create_guess_values(self,peaks):
+        guesses = []
+        for index, peak in enumerate(peaks):
+            y_fit = self.ls.model(self.lc.time, self.frequency[peak])
+            amp = 3*np.std(y_fit)/(2**0.5)/(2**0.5)
+            phase = self.lc.time[np.abs(y_fit - 1.0).argmin()]
+            guesses.append([self.frequency[peak], amp, phase])
+        return guesses
+     
+    def clean_lc(self, guesses):
         
         """
         Cleans lightcurve by removing sections of the periodogram that aren't
@@ -75,16 +85,18 @@ class Periodogram:
         
         Applies fit_sine_simplex one at a time for each peak in the lightcurve
         
+        Takes input guess which is array of freqs,ampls,phases for each peak in the periodogram
         """
+        #make a copy of the lc object, subtract the trends from the copy, and return it
+        lc = self.lc.copy()
 
-        if freqs is None:
-            freqs = self.freqs
         
-        for i, freq in enumerate(freqs):
-            params = self.fit_sine_simplex(steps=200, hf_width=0.08643, window_samples=25, guess=(freqs[i],ampls[i],phases[i]))
-            self.lc.flux = self.lc.flux-params[1]*np.sin(2*params[0]*np.pi*(self.lc.time - params[2]))
+        for freq,amp,phase in guesses:
+            params = self.fit_sine_simplex(steps=100, hf_width=0.08643, window_samples=25, guess=(freq,amp,phase))
+            lc.flux = lc.flux-params[1]*np.sin(2*params[0]*np.pi*(lc.time - params[2]))
+        return lc
         
-    def fit_sine_simplex(self, steps, hf_width, window_samples, guess, lc=None):
+    def fit_sine_simplex(self, steps, hf_width, window_samples, guess, lc=None,freq_tol =0.001):
         """ 
         Helper function to fit a sine wave to a signal by minimizing the 
         significance of the peak in frequency space (from a Lomb-Scargle)
@@ -93,15 +105,22 @@ class Periodogram:
             frequency initial guess
             amplitude initial guess
             phase initial guess
+        freq_tol: amount frequency is allowed to vary in the fit compared to 
+        the window size, default 1% of the window size
         """
         if lc is None:
             lc = self.lc
         #calculate initial periodogram significance
         freq_grid = np.linspace(guess[0]-hf_width, guess[0]+hf_width, window_samples)
-        ls = LombScargle(lc.time, lc.flux, lc.flux_err)
-        power = ls.power(freq_grid, method="cython")
         
-        params = optimize.minimize(fitfunc, guess, args=(lc,freq_grid), method='Nelder-Mead')
+        #create bounds to prevent the freq from straying outside the window
+        #and also prevent the phase from exploring a larger space than it needs to
+        bnds = (
+                (guess[0]-hf_width*freq_tol,guess[0]+hf_width*freq_tol),
+                (None, None),
+                (guess[2]-(1/guess[0]),guess[2]-(1/guess[0]))
+                )
+        params = optimize.minimize(fitfunc, guess, args=(lc,freq_grid), method='L-BFGS-B', bounds=bnds)
         return params.x
         
         
