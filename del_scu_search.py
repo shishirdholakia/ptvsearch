@@ -13,7 +13,7 @@ from scipy import optimize
 
 class Periodogram:
     
-    def __init__(self,lc,threshold=0.1,maximum_frequency=40):
+    def __init__(self,lc,threshold=0.1,maximum_frequency=100):
         self.lc = lc.remove_nans()
         self.threshold = threshold
         self.maximum_frequency = maximum_frequency
@@ -35,7 +35,7 @@ class Periodogram:
             return False
 
     
-    def get_discard_peaks(self,discard_threshold=0.01,discard_all=False):
+    def get_discard_peaks(self,discard_threshold=0.01,discard_all=False,minimum_frequency=10,remove_closer=None):
         
         """
         Gets peaks to discard from the periodogram. By default, it finds peaks
@@ -47,14 +47,61 @@ class Periodogram:
         for instance if you wish to search for transits.
         
         """
+        
+        if remove_closer==None:
+            remove_closer = np.inf
         self.discard_peaks = []
         if discard_all:
             discard_peaks, properties = find_peaks(self.power, prominence=[discard_threshold,1])
         else:
             discard_peaks, properties = find_peaks(self.power, prominence=[discard_threshold,self.threshold])
         for peak in discard_peaks:
-            if self.frequency[peak]<self.maximum_frequency:
-                self.discard_peaks.append(peak)        
+            if self.frequency[peak]<self.maximum_frequency and self.frequency[peak]>minimum_frequency:
+                a = np.abs(self.frequency[discard_peaks] - self.frequency[peak])
+                ma = np.ma.masked_equal(a, 0.0, copy=False)
+                if np.any(ma<remove_closer):
+                    if self.power[peak] > self.power[discard_peaks[ma.argmin()]]:
+                        self.discard_peaks.append(peak)
+                        print("Discarded peak at: " + str(self.frequency[discard_peaks[ma.argmin()]]))
+                else:    
+                    self.discard_peaks.append(peak)
+        return self.discard_peaks
+    
+    def get_discard_peaks_v2(self,discard_threshold=0.01,discard_all=False,minimum_frequency=10,remove_closer=None):
+        
+        """
+        Gets peaks to discard from the periodogram. By default, it finds peaks
+        that are smaller than the main peaks of the delta scuti (the ones that
+        you might want to use to fit for PTVs) but still large enough to cause unwanted
+        noise in the final estimate of PTVs. Can also be used to find all the peaks
+        if discard_all=True, in which case it will yield all the peaks above a threshold.
+        This is useful for getting rid of all of the peaks in the lightcurve,
+        for instance if you wish to search for transits.
+        
+        """
+        
+        if remove_closer==None:
+            remove_closer = np.inf
+        self.discard_peaks = []
+        if discard_all:
+            discard_peaks, properties = find_peaks(self.power, prominence=[discard_threshold,1])
+        else:
+            discard_peaks, properties = find_peaks(self.power, prominence=[discard_threshold,self.threshold])
+        for peak in discard_peaks:
+            if self.frequency[peak]<self.maximum_frequency and self.frequency[peak]>minimum_frequency:
+                self.discard_peaks.append(peak)
+        #now remove elements if they are within the remove_closer threshold
+        if remove_closer is not np.inf:
+            discard_peaks = self.discard_peaks
+            self.discard_peaks = []
+            for peak in discard_peaks:
+                highest_peak = True
+                for close_peak in discard_peaks:
+                    if np.abs(self.frequency[peak]-self.frequency[close_peak]) < remove_closer and self.power[peak] < self.power[close_peak]:
+                        highest_peak = False
+                        print("Discarded peak at: " + str(self.frequency[close_peak]))
+                if highest_peak:
+                    self.discard_peaks.append(peak)
         return self.discard_peaks
         
         
@@ -72,12 +119,12 @@ class Periodogram:
         guesses = []
         for index, peak in enumerate(peaks):
             y_fit = self.ls.model(self.lc.time, self.frequency[peak])
-            amp = 3*np.std(y_fit)/(2**0.5)/(2**0.5)
+            amp = np.sqrt(2)*np.std(y_fit)
             phase = self.lc.time[np.abs(y_fit - 1.0).argmin()]
             guesses.append([self.frequency[peak], amp, phase])
         return guesses
      
-    def clean_lc(self, guesses):
+    def clean_lc(self, guesses,joint_closer=False, window_size=0.08643*2,amp_tol=None):
         
         """
         Cleans lightcurve by removing sections of the periodogram that aren't
@@ -86,62 +133,129 @@ class Periodogram:
         Applies fit_sine_simplex one at a time for each peak in the lightcurve
         
         Takes input guess which is array of freqs,ampls,phases for each peak in the periodogram
+        
+        Also takes parameter joint_closer. 
+            If joint_inwindow is True, the algorithm will check if there are
+            multiple peaks in a single window. If this is true, it will fit these
+            peaks jointly
+            
+            If joint_closer is None, the algorithm will fit every peak independently.
+        
+        returns the cleaned lightcurve and an array of the resulting fit parameters
+        
         """
-        #make a copy of the lc object, subtract the trends from the copy, and return it
-        lc = self.lc.copy()
+        #make a copy of the lc object, subtract the sines from the copy, and return it
+        lc = self.lc.copy().remove_nans()
+        
+        # if there are close peaks, bunch them together into one guess to fit jointly
+        #for instance if you have [[1,10,0], [1.1,20,0], [5,25,0]] and window_size=0.5:
+        #make that [[1,10,0,1.1,20,0], [5,25,0]]
+        if joint_closer:
+            guesses_bunched = []
+            for freq,amp,phase in guesses:
+                highest_peak = True
+                guess_bunched = []
+                for freq_close,amp_close,phase_close in guesses:
+                    if np.abs(freq-freq_close) < window_size/2:
+                        if amp < amp_close:
+                            highest_peak = False
+                        guess_bunched.append(freq_close)
+                        guess_bunched.append(amp_close)
+                        guess_bunched.append(phase_close)
+                if highest_peak:
+                    if len(guess_bunched)==3:
+                        print("Fitting: " + str(guess_bunched))
+                    else:
+                        print("Jointly fitting: " + str(guess_bunched))
+                    guesses_bunched.append(guess_bunched)
+            guesses = guesses_bunched
 
+            
+        params_array = []
+        for guess_params in guesses:
+            params = self.fit_sine_simplex(steps=500, hf_width=window_size/2, window_samples=100, guess=guess_params,amp_tol=amp_tol)
+            sinusoid = 0
+            for i in range(len(params)//3):
+                sinusoid += params[3*i+1]*np.sin(2*params[3*i]*np.pi*(lc.time - params[3*i+2])) #
+            lc.flux = lc.flux-sinusoid
+            params_array.append(params)
+        return lc,params_array
         
-        for freq,amp,phase in guesses:
-            params = self.fit_sine_simplex(steps=100, hf_width=0.08643, window_samples=25, guess=(freq,amp,phase))
-            lc.flux = lc.flux-params[1]*np.sin(2*params[0]*np.pi*(lc.time - params[2]))
-        return lc
-        
-    def fit_sine_simplex(self, steps, hf_width, window_samples, guess, lc=None,freq_tol =0.001):
+    def fit_sine_simplex(self, steps, hf_width, window_samples, guess, lc=None,freq_tol =0.01,amp_tol=None):
         """ 
         Helper function to fit a sine wave to a signal by minimizing the 
         significance of the peak in frequency space (from a Lomb-Scargle)
         
-        guess argument should be tuple containing:
+        guess argument should be tuple of size 3n containing:
             frequency initial guess
             amplitude initial guess
             phase initial guess
+            frequency initial guess 2 (if joint fitting)
+            .
+            .
+            etc.
+            
         freq_tol: amount frequency is allowed to vary in the fit compared to 
         the window size, default 1% of the window size
         """
         if lc is None:
             lc = self.lc
-        #calculate initial periodogram significance
-        freq_grid = np.linspace(guess[0]-hf_width, guess[0]+hf_width, window_samples)
+            
+        #create a window around the tallest peak
+        tallest_peak= max([guess[3*i+1] for i in range(len(guess)//3)])
+        tallest_peak_index = guess.index(tallest_peak)-1
+            
+            
+        freq_grid = np.linspace(guess[tallest_peak_index]-hf_width, guess[tallest_peak_index]+hf_width, window_samples)
         
         #create bounds to prevent the freq from straying outside the window
         #and also prevent the phase from exploring a larger space than it needs to
-        bnds = (
-                (guess[0]-hf_width*freq_tol,guess[0]+hf_width*freq_tol),
-                (None, None),
-                (guess[2]-(1/guess[0]),guess[2]-(1/guess[0]))
-                )
+        if amp_tol is None:
+            bnds = [
+                    [(guess[3*i]-hf_width*freq_tol,guess[3*i]+hf_width*freq_tol),
+                     (None,None),
+                     (guess[3*i+2]-(1/guess[3*i]),guess[3*i+2]-(1/guess[3*i]))]
+                    
+                    for i in range(len(guess)//3)
+                ]
+        else:
+            bnds = [
+                    [(guess[3*i]-hf_width*freq_tol,guess[3*i]+hf_width*freq_tol),
+                     (guess[3*i+1]-amp_tol, guess[3*i+1]+amp_tol),
+                     (guess[3*i+2]-(1/guess[3*i]),guess[3*i+2]-(1/guess[3*i]))] #
+                    
+                
+                for i in range(len(guess)//3)
+                ]
+        bnds = [item for sublist in bnds for item in sublist]
         params = optimize.minimize(fitfunc, guess, args=(lc,freq_grid), method='L-BFGS-B', bounds=bnds)
         return params.x
         
         
         
         
-
+### HELPER FUNCTIONS
 def fitfunc(params,*args):
     """
     lc, grid, guess = x
     freq, amp, phase = params
-    """
     
+    Performs a joint fit to any number of sine waves, where each set of 3
+    params correspond to the period, amplitude, and phase of a given sine wave
+    """
+    assert len(params)%3 == 0
     lc,grid = args
+    sinusoid = 0
+    for i in range(len(params)//3):
+        sinusoid += params[3*i+1]*np.sin(2*params[3*i]*np.pi*(lc.time - params[3*i+2])) #
     ls = LombScargle(lc.time,
-                     lc.flux-params[1]*np.sin(2*params[0]*np.pi*(lc.time - params[2])),
-                     lc.flux_err)
+                     lc.flux-sinusoid)
     power = ls.power(grid, method="cython")
     return power.max()
 
 def sine(x,t,b,a):
     return a*np.sin(2*(1/t)*np.pi*(x - b))
+    
 
     
 class SinModel:
